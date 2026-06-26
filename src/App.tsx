@@ -11,7 +11,7 @@ import DynamicGallery from "./components/DynamicGallery";
 import CodeSection from "./components/CodeSection";
 import CodePage from "./components/CodePage";
 
-const seasideCat = "/src/assets/images/regenerated_image_1781779857605.webp";
+import seasideCat from "./assets/images/regenerated_image_1781779857605.webp";
 
 export default function App() {
   const [currentView, setCurrentView] = useState<"home" | "gallery" | "code">("home");

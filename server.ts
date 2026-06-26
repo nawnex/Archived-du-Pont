@@ -3,8 +3,49 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import exifr from "exifr";
+import imageYears from "./src/data/image-years.json";
 
 const EXIF_YEAR_CACHE = new Map<string, number>();
+
+// Concurrency Semaphore (limits active network EXIF fetches to 5 at a time)
+let activeFetches = 0;
+const fetchQueue: (() => void)[] = [];
+
+function acquireSlot(): Promise<void> {
+  const CONCURRENCY_LIMIT = 5;
+  if (activeFetches < CONCURRENCY_LIMIT) {
+    activeFetches++;
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    fetchQueue.push(resolve);
+  });
+}
+
+function releaseSlot() {
+  activeFetches--;
+  if (fetchQueue.length > 0) {
+    activeFetches++;
+    const next = fetchQueue.shift();
+    if (next) next();
+  }
+}
+
+function extractYearFromFileName(fileName: string): number | null {
+  // Try to match 8-digit date pattern: e.g. PXL_20250717_...
+  const dateMatch = fileName.match(/(?:^|[^0-9])(201[5-9]|202[0-7])[0-1][0-9][0-3][0-9](?:[^0-9]|$)/);
+  if (dateMatch) {
+    return parseInt(dateMatch[1], 10);
+  }
+
+  // Try to match standalone 4-digit year: e.g. 2024 or 2025
+  const yearMatch = fileName.match(/(?:^|[^0-9])(201[5-9]|202[0-7])(?:[^0-9]|$)/);
+  if (yearMatch) {
+    return parseInt(yearMatch[1], 10);
+  }
+
+  return null;
+}
 
 async function getYearForImage(id: string, fileName: string): Promise<number> {
   const cacheKey = `drive-${id}`;
@@ -12,30 +53,29 @@ async function getYearForImage(id: string, fileName: string): Promise<number> {
     return EXIF_YEAR_CACHE.get(cacheKey)!;
   }
 
-  // 1. Try to extract year from the filename (extremely fast & precise)
-  const nameMatch = fileName.match(/\b(201[5-9]|202[0-7])\b/);
-  if (nameMatch) {
-    const year = parseInt(nameMatch[1], 10);
-    EXIF_YEAR_CACHE.set(cacheKey, year);
-    return year;
+  // 1. First priority: Try to extract year from the filename (super fast, 0ms, no network)
+  const filenameYear = extractYearFromFileName(fileName);
+  if (filenameYear !== null) {
+    EXIF_YEAR_CACHE.set(cacheKey, filenameYear);
+    return filenameYear;
   }
 
-  // 2. Try to extract from an 8-digit timestamp pattern in name (e.g. 20240501)
-  const timestampMatch = fileName.match(/\b(201[5-9]|202[0-7])[0-1][0-9][0-3][0-9]\b/);
-  if (timestampMatch) {
-    const year = parseInt(timestampMatch[1], 10);
-    EXIF_YEAR_CACHE.set(cacheKey, year);
-    return year;
-  }
-
-  // 3. Parse EXIF data (DateTimeOriginal) from Google Drive (range request for performance)
+  // 2. Second priority: Parse EXIF data (DateTimeOriginal) from Google Drive (range request protected by semaphore)
+  await acquireSlot();
   try {
     const url = `https://lh3.googleusercontent.com/d/${id}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+
     const response = await fetch(url, {
       headers: {
-        "Range": "bytes=0-131071" // 128KB is usually enough for EXIF headers
-      }
+        "Range": "bytes=0-131071" // 128KB is ample for EXIF headers
+      },
+      signal: controller.signal
     });
+    
+    clearTimeout(timeoutId);
+
     if (response.ok) {
       const arrayBuffer = await response.arrayBuffer();
       const parsed = await exifr.parse(Buffer.from(arrayBuffer), {
@@ -54,11 +94,20 @@ async function getYearForImage(id: string, fileName: string): Promise<number> {
       }
     }
   } catch (error) {
-    console.error(`Failed to fetch/parse EXIF for image ${id}:`, error);
+    // Suppress verbose logs to keep standard output neat and tidy
+  } finally {
+    releaseSlot();
   }
 
-  // Fallback default
-  const defaultYear = 2026;
+  // 3. Third priority: Try to use the pre-compiled EXIF year metadata cache
+  const cachedYear = (imageYears as Record<string, number>)[cacheKey];
+  if (cachedYear) {
+    EXIF_YEAR_CACHE.set(cacheKey, cachedYear);
+    return cachedYear;
+  }
+
+  // 4. Default Fallback
+  const defaultYear = 2025;
   EXIF_YEAR_CACHE.set(cacheKey, defaultYear);
   return defaultYear;
 }
@@ -131,7 +180,7 @@ async function startServer() {
       }
 
       if (matchedFiles.length > 0) {
-        // Fetch/resolve year for all images in parallel
+        // Fetch/resolve year for all images in parallel (queued inside getYearForImage by semaphore)
         const driveImages = await Promise.all(
           matchedFiles.map(async (file) => {
             const year = await getYearForImage(file.id, file.name);

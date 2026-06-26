@@ -3,6 +3,9 @@ import { ArrowRight, CloudLightning } from "lucide-react";
 import LiquidButton from "./LiquidButton";
 import { winterWords, springWords, summerWords, autumnWords } from "../data/seasonWords";
 
+import ghibliHeroStairs from "../assets/images/ghibli_hero_stairs_1781707636317.jpg";
+import surfboardCloudDude from "../assets/images/regenerated_image_1782399725274.png";
+
 export default function HeroSection() {
   const getSeason = () => {
     const month = new Date().getMonth();
@@ -72,7 +75,7 @@ export default function HeroSection() {
       {/* Background Image on Mobile (Skyward Looking) */}
       <div className="absolute inset-0 lg:hidden pointer-events-none z-0">
         <img 
-          src="/src/assets/images/ghibli_hero_stairs_1781707636317.jpg" 
+          src={ghibliHeroStairs} 
           alt="Skyward Looking Background" 
           referrerPolicy="no-referrer"
           className="w-full h-full object-cover select-none pointer-events-none opacity-80"
@@ -133,7 +136,7 @@ export default function HeroSection() {
             {/* The Image Itself */}
             <div className="relative w-full h-full rounded-lg overflow-hidden group">
               <img 
-                src="/src/assets/images/ghibli_hero_stairs_1781707636317.jpg" 
+                src={ghibliHeroStairs} 
                 alt="Studio Ghibli youth character on stairs gazing at towering clouds"
                 referrerPolicy="no-referrer"
                 className="w-full h-full object-cover select-none pointer-events-none transition-transform duration-10000 ease-linear scale-100 group-hover:scale-105"
@@ -162,7 +165,7 @@ export default function HeroSection() {
         className="absolute bottom-0 right-[4%] sm:right-[8%] md:right-[12%] lg:right-[6%] xl:right-[10%] h-[70px] sm:h-[90px] md:h-[102px] lg:h-[115px] w-auto z-25 flex flex-col justify-end items-center pointer-events-none animate-[fadeIn_1s_ease-out]"
       >
         <img 
-          src="/src/assets/images/regenerated_image_1782399725274.png" 
+          src={surfboardCloudDude} 
           alt="Surfboard Cloud Dude" 
           referrerPolicy="no-referrer"
           className="h-full w-auto object-contain select-none pointer-events-none"

@@ -3,30 +3,30 @@ import { galleryImages, GalleryImage } from "../data/galleryImages";
 import imageYears from "../data/image-years.json";
 
 function getYearFromImage(img: GalleryImage): number {
-  // Use the server-resolved EXIF year if available
-  if (img.year !== undefined) {
+  // 1. Use the server-resolved accurate EXIF/filename year if available
+  if (img.year !== undefined && img.year !== null) {
     return img.year;
   }
 
-  // Try to use the pre-compiled EXIF year metadata cache first
+  // 2. Try to find an 8-digit date pattern containing a year (e.g. PXL_20250717_...)
+  const timestampMatch = img.alt.match(/(?:^|[^0-9])(201[5-9]|202[0-7])[0-1][0-9][0-3][0-9](?:[^0-9]|$)/);
+  if (timestampMatch) {
+    return parseInt(timestampMatch[1], 10);
+  }
+
+  // Try to find a 4-digit year (e.g. 2015-2027)
+  const yearMatch = img.alt.match(/(?:^|[^0-9])(201[5-9]|202[0-7])(?:[^0-9]|$)/);
+  if (yearMatch) {
+    return parseInt(yearMatch[1], 10);
+  }
+
+  // 3. Fallback to the pre-compiled EXIF year metadata cache
   const cachedYear = (imageYears as Record<string, number>)[img.id];
   if (cachedYear) {
     return cachedYear;
   }
 
-  // 1. Try to find a 4-digit year (e.g. 2015-2026) in the alt/filename string
-  const yearMatch = img.alt.match(/\b(201[5-9]|202[0-6])\b/);
-  if (yearMatch) {
-    return parseInt(yearMatch[1], 10);
-  }
-  
-  // 2. Try to find an 8-digit timestamp pattern containing a year (e.g., 20240501)
-  const timestampMatch = img.alt.match(/\b(201[5-9]|202[0-6])[0-1][0-9][0-3][0-9]\b/);
-  if (timestampMatch) {
-    return parseInt(timestampMatch[1], 10);
-  }
-
-  return 2026;
+  return 2025;
 }
 
 export default function DynamicGallery() {
