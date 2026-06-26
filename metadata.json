@@ -1,0 +1,8 @@
+{
+  "name": "Remix: Archives du Pont",
+  "description": "An authentic Ghibli-inspired single-page experience featuring animated sky elements, hand-drawn character artwork, and a seaside road cat backdrop locked at the bottom.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

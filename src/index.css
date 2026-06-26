@@ -1,0 +1,238 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&family=JetBrains+Mono:wght@300;400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display", ui-serif, Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --animate-shimmer: shimmer 1.5s ease-out infinite;
+
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-150%) skewX(-12deg);
+    }
+    100% {
+      transform: translateX(150%) skewX(-12deg);
+    }
+  }
+}
+
+/* Base style resets and scroll smoothing */
+html, body {
+  background-color: #103E8B;
+  color: #f8fafc;
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+  margin: 0;
+  padding: 0;
+}
+
+/* Global transparent scrollbar with no background track */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+::-webkit-scrollbar-track {
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+::-webkit-scrollbar-track-piece {
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22) !important;
+  border-radius: 8px !important;
+  border: 2px solid transparent !important;
+  background-clip: padding-box !important;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4) !important;
+}
+
+/* For Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+
+/* Customized glass and cloud styles */
+.liquid-glass-btn {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.06) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.12),
+    inset 0 1px 2px rgba(255, 255, 255, 0.5);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+  transition: background-color 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+}
+
+.liquid-glass-btn:hover {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0.09) 100%);
+  border-color: rgba(255, 255, 255, 0.45);
+  box-shadow: 
+    0 12px 36px rgba(0, 0, 0, 0.18),
+    inset 0 1px 3px rgba(255, 255, 255, 0.65);
+  transform: translateY(-1.5px);
+}
+
+.liquid-glass-btn:active {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.05) 100%);
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.08),
+    inset 0 1px 1px rgba(255, 255, 255, 0.25);
+  transform: translateY(0.5px);
+}
+
+/* Secondary Button Style */
+.liquid-glass-btn-secondary {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 
+    0 4px 15px rgba(0, 0, 0, 0.08);
+  transition: background-color 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.liquid-glass-btn-secondary:hover {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.05) 100%);
+  border-color: rgba(255, 255, 255, 0.28);
+  box-shadow: 
+    0 8px 24px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+}
+
+.liquid-glass-btn-secondary:active {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%);
+  transform: translateY(1px);
+}
+
+/* Real-time Dynamic Refraction/Warping Overlay */
+.liquid-glass-refraction {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    220px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    rgba(255, 255, 255, 0.15) 0%,
+    rgba(255, 255, 255, 0.04) 45%,
+    transparent 100%
+  );
+  opacity: var(--pointer-active, 0);
+  mix-blend-mode: overlay;
+  transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Specular High-Intensity highlight (creates metallic-like shimmer under user pointer) */
+.liquid-glass-specular {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    85px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    rgba(255, 255, 255, 0.45) 0%,
+    rgba(255, 255, 255, 0.12) 40%,
+    transparent 80%
+  );
+  opacity: var(--pointer-active, 0);
+  mix-blend-mode: color-dodge;
+  transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* Masked Glowing Border that shines brightly directly beneath the pointer position */
+.liquid-glass-btn::before, .liquid-glass-btn-secondary::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: radial-gradient(
+    130px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    rgba(255, 255, 255, 0.75) 0%,
+    rgba(255, 255, 255, 0.22) 50%,
+    transparent 100%
+  );
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  -webkit-mask-composite: xor;
+  pointer-events: none;
+  opacity: var(--pointer-active, 0);
+  transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 4;
+}
+
+/* Glass glare highlight that slides across on idle hover */
+.liquid-glass-btn::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -50%;
+  width: 200%;
+  height: 100%;
+  background: linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.15) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: skewX(-25deg);
+  transition: transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 5;
+}
+
+.liquid-glass-btn:hover::after {
+  transform: translateX(100%) skewX(-25deg);
+}
+
+/* Cloud styles with painterly watercolor filters */
+.ghibli-cloud-filter {
+  filter: url(#painterly-disp);
+}
+
+/* Ghibli gradient backgrounds */
+.bg-ghibli-sky {
+  background-color: #103E8B;
+}
+
+/* Custom interactive animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+
