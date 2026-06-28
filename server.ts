@@ -47,7 +47,7 @@ function extractYearFromFileName(fileName: string): number | null {
   return null;
 }
 
-async function getYearForImage(id: string, fileName: string): Promise<number> {
+async function getYearForImage(id: string, fileName: string, allowNetworkFetch: boolean = true): Promise<number> {
   const cacheKey = `drive-${id}`;
   if (EXIF_YEAR_CACHE.has(cacheKey)) {
     return EXIF_YEAR_CACHE.get(cacheKey)!;
@@ -60,7 +60,19 @@ async function getYearForImage(id: string, fileName: string): Promise<number> {
     return filenameYear;
   }
 
-  // 2. Second priority: Parse EXIF data (DateTimeOriginal) from Google Drive (range request protected by semaphore)
+  // 2. Second priority: Try to use the pre-compiled EXIF year metadata cache (0ms, no network)
+  const cachedYear = (imageYears as Record<string, number>)[cacheKey];
+  if (cachedYear) {
+    EXIF_YEAR_CACHE.set(cacheKey, cachedYear);
+    return cachedYear;
+  }
+
+  // If network fetch is disabled, return 2025 fallback instantly
+  if (!allowNetworkFetch) {
+    return 2025;
+  }
+
+  // 3. Third priority: Parse EXIF data (DateTimeOriginal) from Google Drive (range request protected by semaphore)
   await acquireSlot();
   try {
     const url = `https://lh3.googleusercontent.com/d/${id}`;
@@ -97,13 +109,6 @@ async function getYearForImage(id: string, fileName: string): Promise<number> {
     // Suppress verbose logs to keep standard output neat and tidy
   } finally {
     releaseSlot();
-  }
-
-  // 3. Third priority: Try to use the pre-compiled EXIF year metadata cache
-  const cachedYear = (imageYears as Record<string, number>)[cacheKey];
-  if (cachedYear) {
-    EXIF_YEAR_CACHE.set(cacheKey, cachedYear);
-    return cachedYear;
   }
 
   // 4. Default Fallback
@@ -180,10 +185,59 @@ async function startServer() {
       }
 
       if (matchedFiles.length > 0) {
-        // Fetch/resolve year for all images in parallel (queued inside getYearForImage by semaphore)
+        const recentOnly = req.query.recentOnly === "true";
+        const excludeRecent = req.query.excludeRecent === "true";
+
+        if (recentOnly) {
+          // Resolve with network disabled to guarantee 0ms network overhead
+          const driveImages = await Promise.all(
+            matchedFiles.map(async (file) => {
+              const year = await getYearForImage(file.id, file.name, false);
+              return {
+                id: `drive-${file.id}`,
+                src: `https://lh3.googleusercontent.com/d/${file.id}`,
+                alt: file.name,
+                year: year,
+              };
+            })
+          );
+
+          // Find the maximum year in the collection
+          const maxYear = driveImages.reduce((max, img) => img.year > max ? img.year : max, 2025);
+
+          // Return only those matching the most recent year
+          const recentImages = driveImages.filter(img => img.year === maxYear);
+          return res.json({ provider: "drive", files: recentImages, maxYear });
+        }
+
+        if (excludeRecent) {
+          // Resolve with network enabled to safely fetch and cache any remaining/newly-added EXIF in background
+          const driveImages = await Promise.all(
+            matchedFiles.map(async (file) => {
+              const year = await getYearForImage(file.id, file.name, true);
+              return {
+                id: `drive-${file.id}`,
+                src: `https://lh3.googleusercontent.com/d/${file.id}`,
+                alt: file.name,
+                year: year,
+              };
+            })
+          );
+
+          // Find the maximum year in the fast-resolved list to know which year was already loaded
+          const fastYears = await Promise.all(
+            matchedFiles.map((file) => getYearForImage(file.id, file.name, false))
+          );
+          const maxYear = fastYears.reduce((max, yr) => yr > max ? yr : max, 2025);
+
+          const remainingImages = driveImages.filter(img => img.year !== maxYear);
+          return res.json({ provider: "drive", files: remainingImages });
+        }
+
+        // Fallback: Fetch/resolve year for all images in parallel
         const driveImages = await Promise.all(
           matchedFiles.map(async (file) => {
-            const year = await getYearForImage(file.id, file.name);
+            const year = await getYearForImage(file.id, file.name, true);
             return {
               id: `drive-${file.id}`,
               src: `https://lh3.googleusercontent.com/d/${file.id}`,

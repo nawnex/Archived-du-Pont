@@ -29,12 +29,25 @@ function getYearFromImage(img: GalleryImage): number {
   return 2025;
 }
 
+function getOptimizedImageUrl(src: string, width: number): string {
+  if (src.includes("googleusercontent.com")) {
+    const baseUrl = src.split("=")[0];
+    return `${baseUrl}=w${width}`;
+  }
+  return src;
+}
+
 export default function DynamicGallery() {
   const [images, setImages] = useState<GalleryImage[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [provider, setProvider] = useState<"local" | "drive">("local");
   const [columnCount, setColumnCount] = useState<number>(2);
   const [aspectRatios, setAspectRatios] = useState<Record<string, number>>({});
+
+  const [hasMore, setHasMore] = useState<boolean>(true);
+  const [loadingMore, setLoadingMore] = useState<boolean>(false);
+  const sentinelRef = React.useRef<HTMLDivElement | null>(null);
+  const fetchStartedRef = React.useRef<boolean>(false);
 
   useEffect(() => {
     const updateColumns = () => {
@@ -79,7 +92,8 @@ export default function DynamicGallery() {
 
     async function fetchGallery() {
       try {
-        const res = await fetch("/api/gallery");
+        // Step 1: Prioritise fetching the most recent year images (extremely fast, no network EXIF overhead)
+        const res = await fetch("/api/gallery?recentOnly=true");
         if (!res.ok) {
           throw new Error("API request failed");
         }
@@ -93,6 +107,7 @@ export default function DynamicGallery() {
             // Fall back to pre-bundled local files if API returns empty list or isn't configured
             setImages(shuffleArray(galleryImages));
             setProvider("local");
+            setHasMore(false);
           }
         }
       } catch (err) {
@@ -100,6 +115,7 @@ export default function DynamicGallery() {
         if (isActive) {
           setImages(shuffleArray(galleryImages));
           setProvider("local");
+          setHasMore(false);
         }
       } finally {
         if (isActive) {
@@ -114,6 +130,76 @@ export default function DynamicGallery() {
       isActive = false;
     };
   }, []);
+
+  // Function to trigger fetching remaining images (2025, 2024, etc.)
+  const triggerFetchRemaining = React.useCallback(() => {
+    if (fetchStartedRef.current || provider === "local") return;
+    fetchStartedRef.current = true;
+    setLoadingMore(true);
+
+    function shuffleArray<T>(array: T[]): T[] {
+      const arr = [...array];
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    async function fetchRest() {
+      try {
+        const res = await fetch("/api/gallery?excludeRecent=true");
+        if (!res.ok) throw new Error("API request failed");
+        const data = await res.json();
+        if (data.files && data.files.length > 0) {
+          setImages((prev) => [...prev, ...shuffleArray(data.files)]);
+        }
+      } catch (err) {
+        console.warn("Could not fetch remaining Google Drive images:", err);
+      } finally {
+        setLoadingMore(false);
+        setHasMore(false);
+      }
+    }
+
+    fetchRest();
+  }, [provider]);
+
+  // Trigger when scroll sentinel becomes visible
+  useEffect(() => {
+    if (!hasMore || loadingMore || loading || provider === "local") return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          triggerFetchRemaining();
+        }
+      },
+      { rootMargin: "300px" } // Load early when user scrolls close to bottom
+    );
+
+    const currentSentinel = sentinelRef.current;
+    if (currentSentinel) {
+      observer.observe(currentSentinel);
+    }
+
+    return () => {
+      if (currentSentinel) {
+        observer.unobserve(currentSentinel);
+      }
+    };
+  }, [hasMore, loadingMore, loading, provider, triggerFetchRemaining]);
+
+  // Idle fallback to preload remaining images after a brief delay
+  useEffect(() => {
+    if (loading || provider === "local") return;
+
+    const timeoutId = setTimeout(() => {
+      triggerFetchRemaining();
+    }, 2500);
+
+    return () => clearTimeout(timeoutId);
+  }, [loading, provider, triggerFetchRemaining]);
 
   // Group the already-randomized images by year
   const groupedImages: { [year: number]: GalleryImage[] } = {};
@@ -221,7 +307,17 @@ export default function DynamicGallery() {
                         <div className="w-full overflow-hidden bg-sky-950/20">
                           {/* Dynamic Image with Native Lazy Loading and Aspect Preserved */}
                           <img
-                            src={img.src}
+                            src={img.src.includes("googleusercontent.com") ? getOptimizedImageUrl(img.src, 400) : img.src}
+                            srcSet={
+                              img.src.includes("googleusercontent.com")
+                                ? `${getOptimizedImageUrl(img.src, 256)} 256w, ${getOptimizedImageUrl(img.src, 400)} 400w, ${getOptimizedImageUrl(img.src, 600)} 600w, ${getOptimizedImageUrl(img.src, 800)} 800w`
+                                : undefined
+                            }
+                            sizes={
+                              img.src.includes("googleusercontent.com")
+                                ? "(max-width: 640px) 50vw, (max-width: 1024px) 33vw, (max-width: 1280px) 25vw, 20vw"
+                                : undefined
+                            }
                             alt={img.alt}
                             loading="lazy"
                             referrerPolicy="no-referrer"
@@ -239,6 +335,21 @@ export default function DynamicGallery() {
               );
             })}
           </div>
+          
+          {/* Intersection sentinel to trigger loading remaining images on-demand */}
+          {hasMore && (
+            <div 
+              ref={sentinelRef} 
+              className="w-full flex flex-col items-center justify-center py-12 gap-3"
+            >
+              {loadingMore && (
+                <>
+                  <div className="w-6 h-6 rounded-full border-2 border-white/10 border-t-white/60 animate-spin" />
+                  <span className="font-mono text-[10px] text-white/40 tracking-wider">LOADING ARCHIVE FOR PREVIOUS YEARS...</span>
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
