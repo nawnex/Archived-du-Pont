@@ -43,9 +43,13 @@ export default function GlassScrollbar() {
     window.addEventListener("scroll", handleScroll, { passive: true });
     window.addEventListener("resize", handleResize, { passive: true });
 
+    let animationFrameId: number;
     // Use a ResizeObserver to watch for content size changes (e.g., dynamic loading of image content)
     const observer = new ResizeObserver(() => {
-      updateMetrics();
+      cancelAnimationFrame(animationFrameId);
+      animationFrameId = requestAnimationFrame(() => {
+        updateMetrics();
+      });
     });
     observer.observe(document.body);
 
@@ -59,6 +63,7 @@ export default function GlassScrollbar() {
       window.removeEventListener("scroll", handleScroll);
       window.removeEventListener("resize", handleResize);
       observer.disconnect();
+      cancelAnimationFrame(animationFrameId);
       if (hideTimeoutRef.current) {
         clearTimeout(hideTimeoutRef.current);
       }

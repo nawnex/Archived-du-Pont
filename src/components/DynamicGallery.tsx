@@ -211,20 +211,33 @@ export default function DynamicGallery() {
 
     let animationId: number;
     let lastTime = performance.now();
-    const pixelsPerSecond = 26; // very slow scroll
+    const pixelsPerSecond = 34; // very slow scroll (increased by 30%)
     let preciseScrollY = window.scrollY;
+    let isFirstFrame = true;
 
     const scrollLoop = (time: number) => {
       if (!autoScrollActiveRef.current) return;
 
-      const delta = (time - lastTime) / 1000;
+      if (isFirstFrame) {
+        lastTime = time;
+        isFirstFrame = false;
+        animationId = requestAnimationFrame(scrollLoop);
+        return;
+      }
+
+      let delta = (time - lastTime) / 1000;
       lastTime = time;
+
+      // Cap delta to prevent huge jumps if the browser lags or backgrounded
+      if (delta > 0.1) delta = 0.1;
+      if (delta < 0) delta = 0;
 
       const scrollAmount = pixelsPerSecond * delta;
       const currentScrollY = window.scrollY;
 
-      // If the user manually scrolled, sync our precise position
-      if (Math.abs(preciseScrollY - currentScrollY) > 2) {
+      // Increase the tolerance threshold to 8px to prevent device-pixel-ratio / subpixel rounding
+      // in Safari from false-triggering a manual scroll sync reset
+      if (Math.abs(preciseScrollY - currentScrollY) > 8) {
         preciseScrollY = currentScrollY;
       }
 

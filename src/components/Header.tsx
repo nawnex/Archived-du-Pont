@@ -30,6 +30,11 @@ export default function Header({ currentView, onViewChange }: HeaderProps) {
       const currentScrollY = window.scrollY;
       const diff = currentScrollY - lastScrollY.current;
 
+      // Filter out micro-scrolling jitters (e.g. rubber-banding or subpixel shifts) to prevent paint storms on mobile
+      if (Math.abs(diff) < 3) {
+        return;
+      }
+
       if (currentScrollY <= 50) {
         // Always visible near top of page
         setVisible(true);
@@ -100,13 +105,15 @@ export default function Header({ currentView, onViewChange }: HeaderProps) {
     title.style.setProperty("--pointer-active", "0");
   };
 
+  const blurClass = visible ? "backdrop-blur-xl md:backdrop-blur-2xl" : "";
+
   return (
     <header className={`${
       currentView === "home" 
-        ? "fixed top-0 left-0 w-full bg-[#103E8B]/15 backdrop-blur-xl md:backdrop-blur-2xl border-b border-white/10 border-t border-white/10 py-4 md:py-6" 
-        : "fixed top-0 left-0 w-full bg-[#0d2a5f]/25 backdrop-blur-xl md:backdrop-blur-2xl border-b border-white/15 border-t border-white/10 py-4 md:py-5"
+        ? `fixed top-0 left-0 w-full bg-[#103E8B]/15 ${blurClass} border-b border-white/10 border-t border-white/10 py-4 md:py-6` 
+        : `fixed top-0 left-0 w-full bg-[#0d2a5f]/25 ${blurClass} border-b border-white/15 border-t border-white/10 py-4 md:py-5`
     } z-50 px-6 md:px-12 flex justify-between items-center select-none shadow-[0_10px_30px_rgba(0,0,0,0.15)] overflow-hidden transform transition-all duration-200 ease-out ${
-      visible ? "translate-y-0 opacity-100" : "-translate-y-full opacity-0 pointer-events-none !duration-1000 !ease-in-out"
+      visible ? "translate-y-0 opacity-100" : "-translate-y-full opacity-0 pointer-events-none"
     }`}>
       
       {/* Liquid Glass Highlight Reflective Sheen Sweep */}
