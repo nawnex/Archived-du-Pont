@@ -31,9 +31,9 @@ export default function App() {
       <div className={currentView === "home" ? "block" : "hidden"}>
         {/* Primary Landing Hero Scene (Section 1 - Journey) */}
         <div className="relative z-10 w-full animate-[fadeIn_0.5s_ease-out]">
-          <HeroSection />
+          <HeroSection onExploreGallery={() => handleViewChange("gallery")} />
         </div>
-
+        
         {/* Code Section (Section 1.5 - Interactive Hacker Globe & Staggered Code Work Title) */}
         <CodeSection onViewChange={handleViewChange} />
 
@@ -49,9 +49,6 @@ export default function App() {
               alt="Ghibli Cat on Sea Road Background"
               className="col-start-1 row-start-1 w-full h-full min-h-[450px] object-cover block select-none pointer-events-none transition-opacity duration-500"
             />
-
-            {/* Invisible scroll target anchor positioned precisely at 85% down from the top to scroll a precise amount relative to the cat image */}
-            <div id="coastline-bottom-third" className="absolute top-[85%] left-0 w-full h-1 pointer-events-none" />
 
             {/* Solid color gradient overlay to smoothly feather and blend the image top border seamlessly with the hero section */}
             <div className="absolute inset-x-0 top-0 h-32 md:h-48 bg-gradient-to-b from-[#0d3475] via-[#0d3475]/60 to-transparent pointer-events-none z-10" />

@@ -6,7 +6,11 @@ import { winterWords, springWords, summerWords, autumnWords } from "../data/seas
 import ghibliHeroStairs from "../assets/images/ghibli_hero_stairs_1781707636317.jpg";
 import surfboardCloudDude from "../assets/images/regenerated_image_1782399725274.png";
 
-export default function HeroSection() {
+interface HeroSectionProps {
+  onExploreGallery?: () => void;
+}
+
+export default function HeroSection({ onExploreGallery }: HeroSectionProps) {
   const getSeason = () => {
     const month = new Date().getMonth();
     // Dec, Jan, Feb -> Winter
@@ -50,23 +54,6 @@ export default function HeroSection() {
 
   const capitalizedWord = selectedWord.charAt(0).toUpperCase() + selectedWord.slice(1);
 
-  const handleScrollToCoastline = () => {
-    const el = document.getElementById("coastline-scene");
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth" });
-    }
-  };
-
-  const handleScrollToCoastlineBottom = () => {
-    // Dispatch custom event to trigger wave crashing sound playback in AmbientPlayer
-    window.dispatchEvent(new CustomEvent("play-waves"));
-
-    const el = document.getElementById("coastline-bottom-third");
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "end" });
-    }
-  };
-
   return (
     <section 
       id="hero-scene" 
@@ -101,24 +88,15 @@ export default function HeroSection() {
             There's a quiet nostalgia that resides within the hand-painted skies of our dreams. A gentle breeze, some concrete stairs climbing skyward, and an endless blue horizon waiting to be discovered.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 mt-4 w-full sm:w-auto">
+          <div className="flex justify-center items-center w-full mt-4">
             <LiquidButton 
               id="hero-primary-cta"
-              onClick={handleScrollToCoastline} 
+              onClick={onExploreGallery} 
               variant="primary"
-              className="px-8 py-3.5 text-sm uppercase tracking-widest font-light flex items-center gap-2 group"
+              className="px-8 py-3.5 text-sm uppercase tracking-widest font-light flex items-center justify-center gap-2 group"
             >
-              Explore Sounds
+              Explore Gallery
               <ArrowRight className="w-4 h-4 text-white group-hover:translate-x-1.5 transition-transform duration-300" />
-            </LiquidButton>
-            
-            <LiquidButton 
-              id="hero-secondary-cta"
-              onClick={handleScrollToCoastlineBottom}
-              variant="secondary"
-              className="px-8 py-3.5 text-sm uppercase tracking-widest font-light cursor-pointer"
-            >
-              Coastline View
             </LiquidButton>
           </div>
         </div>
