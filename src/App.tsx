@@ -10,6 +10,7 @@ import AmbientPlayer from "./components/AmbientPlayer";
 import DynamicGallery from "./components/DynamicGallery";
 import CodeSection from "./components/CodeSection";
 import CodePage from "./components/CodePage";
+import GlassScrollbar from "./components/GlassScrollbar";
 
 import seasideCat from "./assets/images/regenerated_image_1781779857605.webp";
 
@@ -72,6 +73,9 @@ export default function App() {
       {currentView === "code" && (
         <CodePage onViewChange={handleViewChange} />
       )}
+
+      {/* Interactive liquid glass scrollbar (desktop only) */}
+      <GlassScrollbar />
     </div>
   );
 }

@@ -28,44 +28,42 @@ html, body {
   padding: 0;
 }
 
-/* Global transparent scrollbar with no background track */
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-  background-color: transparent !important;
-  background: transparent !important;
+/* Hide default scrollbar on desktop screens (md and above) since we use our custom liquid glass hovering scrollbar */
+@media (min-width: 768px) {
+  ::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    background: transparent !important;
+  }
+  
+  html, body {
+    scrollbar-width: none !important; /* Firefox */
+    -ms-overflow-style: none !important;  /* IE and Edge */
+  }
 }
 
-::-webkit-scrollbar-track {
-  background-color: transparent !important;
-  background: transparent !important;
-}
+/* Fallback/Default for mobile/tablet screens */
+@media (max-width: 767px) {
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+    background-color: transparent !important;
+  }
 
-::-webkit-scrollbar-track-piece {
-  background-color: transparent !important;
-  background: transparent !important;
-}
+  ::-webkit-scrollbar-track {
+    background-color: transparent !important;
+  }
 
-::-webkit-scrollbar-corner {
-  background: transparent !important;
-  background-color: transparent !important;
-}
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2) !important;
+    border-radius: 4px !important;
+  }
 
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.22) !important;
-  border-radius: 8px !important;
-  border: 2px solid transparent !important;
-  background-clip: padding-box !important;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.4) !important;
-}
-
-/* For Firefox */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  }
 }
 
 /* Customized glass and cloud styles */
