@@ -23,7 +23,6 @@ html, body {
   color: #f8fafc;
   font-family: var(--font-sans);
   overflow-x: hidden;
-  scroll-behavior: smooth;
   margin: 0;
   padding: 0;
 }

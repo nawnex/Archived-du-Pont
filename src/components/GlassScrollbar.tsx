@@ -43,11 +43,11 @@ export default function GlassScrollbar() {
     window.addEventListener("scroll", handleScroll, { passive: true });
     window.addEventListener("resize", handleResize, { passive: true });
 
-    // Use a MutationObserver to watch for content size changes (e.g., dynamic loading)
-    const observer = new MutationObserver(() => {
+    // Use a ResizeObserver to watch for content size changes (e.g., dynamic loading of image content)
+    const observer = new ResizeObserver(() => {
       updateMetrics();
     });
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+    observer.observe(document.body);
 
     // Initial brief flash
     setIsVisible(true);

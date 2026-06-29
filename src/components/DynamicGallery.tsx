@@ -180,8 +180,8 @@ export default function DynamicGallery() {
     const startTime = Date.now();
 
     const cancelScroll = (e: Event) => {
-      // Ignore events within 800ms of activation to prevent Safari delayed taps (like tap-to-zoom analysis) from cancelling it
-      if (Date.now() - startTime < 800) return;
+      // Ignore pointer/touch events within 800ms of activation to prevent Safari delayed taps (like tap-to-zoom analysis) from cancelling it
+      if (e.type !== "wheel" && e.type !== "keydown" && Date.now() - startTime < 800) return;
       setIsAutoScrolling(false);
     };
 
@@ -417,51 +417,82 @@ export default function DynamicGallery() {
     loadNextYearRef.current = loadNextYear;
   }, [loadNextYear]);
 
+  // Create stable refs of changing states to keep the scroll event listener fully static and prevent teardowns on scroll
+  const loadingRef = React.useRef(loading);
+  const imagesLengthRef = React.useRef(images.length);
+  const providerRef = React.useRef(provider);
+
+  useEffect(() => {
+    loadingRef.current = loading;
+    imagesLengthRef.current = images.length;
+    providerRef.current = provider;
+  }, [loading, images.length, provider]);
+
   // Scroll listener to:
   // 1. Detect which year the user is currently scrolling on
   // 2. Preload the next year if the user is past 70% of the active scrolled year
   useEffect(() => {
-    if (loading || images.length === 0 || provider === "local") return;
+    let lastRun = 0;
+    const throttleDelay = 150; // Throttle to run at most once every 150ms
 
     const handleScroll = () => {
-      const items = document.querySelectorAll(".gallery-image-item");
-      if (items.length === 0) return;
+      if (loadingRef.current || imagesLengthRef.current === 0 || providerRef.current === "local") return;
 
-      // 1. Find the year closest to the viewport reference (e.g. 120px from top)
-      let closestYear: number | null = null;
-      let minDistance = Infinity;
+      const now = Date.now();
+      if (now - lastRun < throttleDelay) return;
+      lastRun = now;
 
-      items.forEach((item) => {
-        const rect = item.getBoundingClientRect();
-        const distance = Math.abs(rect.top - 120); 
-        if (distance < minDistance) {
-          minDistance = distance;
-          const yearAttr = item.getAttribute("data-year");
-          if (yearAttr) {
-            closestYear = parseInt(yearAttr, 10);
-          }
+      const headers = Array.from(document.querySelectorAll(".gallery-image-item[data-first-of-year='true']"));
+      if (headers.length === 0) return;
+
+      // 1. Measure and sort the loaded year headers by their viewport top positions
+      const sortedHeaders = headers
+        .map((header) => {
+          const rect = header.getBoundingClientRect();
+          return {
+            year: parseInt(header.getAttribute("data-year") || "0", 10),
+            top: rect.top,
+          };
+        })
+        .filter((h) => h.year > 0)
+        .sort((a, b) => a.top - b.top);
+
+      if (sortedHeaders.length === 0) return;
+
+      // Find the last year header that is at or above our reference line (120px from top)
+      let activeYear: number | null = null;
+      for (let i = 0; i < sortedHeaders.length; i++) {
+        if (sortedHeaders[i].top <= 120) {
+          activeYear = sortedHeaders[i].year;
+        } else {
+          break;
         }
-      });
-
-      if (closestYear && closestYear !== currentScrolledYear) {
-        setCurrentScrolledYear(closestYear);
       }
 
-      // 2. Measure scroll percentage of the active scrolled year
-      const activeYear = closestYear || currentScrolledYear;
-      if (activeYear) {
-        const yearItems = document.querySelectorAll(`.gallery-image-item[data-year="${activeYear}"]`);
-        if (yearItems.length > 0) {
-          let yearTop = Infinity;
-          let yearBottom = -Infinity;
+      // Fallback: if we are at the very top, default to the first year header in list
+      if (!activeYear) {
+        activeYear = sortedHeaders[0].year;
+      }
 
-          yearItems.forEach((el) => {
-            const rect = el.getBoundingClientRect();
-            const absoluteTop = rect.top + window.scrollY;
-            const absoluteBottom = rect.bottom + window.scrollY;
-            if (absoluteTop < yearTop) yearTop = absoluteTop;
-            if (absoluteBottom > yearBottom) yearBottom = absoluteBottom;
-          });
+      if (activeYear) {
+        setCurrentScrolledYear((prev) => {
+          if (prev !== activeYear) return activeYear;
+          return prev;
+        });
+      }
+
+      // 2. Measure scroll percentage of the active scrolled year using adjacent headers
+      if (activeYear) {
+        const headerIndex = sortedHeaders.findIndex((h) => h.year === activeYear);
+        if (headerIndex !== -1) {
+          const yearTop = sortedHeaders[headerIndex].top + window.scrollY;
+          let yearBottom: number;
+          if (headerIndex < sortedHeaders.length - 1) {
+            yearBottom = sortedHeaders[headerIndex + 1].top + window.scrollY;
+          } else {
+            // If there are no subsequent years, the bottom boundary is the end of the scrollable document
+            yearBottom = document.documentElement.scrollHeight;
+          }
 
           const yearHeight = yearBottom - yearTop;
           if (yearHeight > 0) {
@@ -483,7 +514,17 @@ export default function DynamicGallery() {
     handleScroll();
 
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [loading, images.length, currentScrolledYear, provider]);
+  }, []);
+
+  // Trigger scroll-sync and active year evaluation once images are loaded and DOM has settled
+  useEffect(() => {
+    if (!loading && images.length > 0) {
+      const timer = setTimeout(() => {
+        window.dispatchEvent(new Event("scroll"));
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, images.length]);
 
   // Trigger loading via IntersectionObserver sentinel (as fallback at the bottom of the page)
   useEffect(() => {
@@ -613,6 +654,7 @@ export default function DynamicGallery() {
                         key={img.id}
                         className="w-full relative gallery-image-item"
                         data-year={imgYear}
+                        data-first-of-year={isFirst ? "true" : "false"}
                       >
                         {/* Liquid glass text-only title floating above the grid (4x larger) */}
                         {isFirst && (
