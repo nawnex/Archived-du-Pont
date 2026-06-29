@@ -198,6 +198,14 @@ export default function DynamicGallery() {
     };
   }, [isAutoScrolling]);
 
+  const hasMoreRef = React.useRef(hasMore);
+  const loadingMoreRef = React.useRef(loadingMore);
+
+  useEffect(() => {
+    hasMoreRef.current = hasMore;
+    loadingMoreRef.current = loadingMore;
+  }, [hasMore, loadingMore]);
+
   // Frame-by-frame extremely slow auto scroll loop
   useEffect(() => {
     autoScrollActiveRef.current = isAutoScrolling;
@@ -233,22 +241,22 @@ export default function DynamicGallery() {
       if (delta < 0) delta = 0;
 
       const scrollAmount = pixelsPerSecond * delta;
-      const currentScrollY = window.scrollY;
-
-      // Increase the tolerance threshold to 8px to prevent device-pixel-ratio / subpixel rounding
-      // in Safari from false-triggering a manual scroll sync reset
-      if (Math.abs(preciseScrollY - currentScrollY) > 8) {
-        preciseScrollY = currentScrollY;
-      }
 
       const maxScrollY = document.documentElement.scrollHeight - window.innerHeight;
 
       if (scrollDirectionRef.current === "down") {
         preciseScrollY += scrollAmount;
         if (preciseScrollY >= maxScrollY - 1) {
-          preciseScrollY = maxScrollY;
-          window.scrollTo(0, maxScrollY);
-          scrollDirectionRef.current = "up";
+          if (hasMoreRef.current) {
+            // Keep at the bottom and wait for more content to load seamlessly
+            preciseScrollY = maxScrollY;
+            window.scrollTo(0, maxScrollY);
+          } else {
+            // No more content to load, reverse direction
+            preciseScrollY = maxScrollY;
+            window.scrollTo(0, maxScrollY);
+            scrollDirectionRef.current = "up";
+          }
         } else {
           window.scrollTo(0, preciseScrollY);
         }
