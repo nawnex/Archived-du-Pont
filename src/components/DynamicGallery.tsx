@@ -72,6 +72,7 @@ export default function DynamicGallery() {
   const expandedImageRef = React.useRef<GalleryImage | null>(null);
   const scrollDirectionRef = React.useRef<"down" | "up">("down");
   const autoScrollActiveRef = React.useRef<boolean>(false);
+  const overlayRef = React.useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     expandedImageRef.current = expandedImage;
@@ -139,15 +140,36 @@ export default function DynamicGallery() {
     registerTap(img);
   };
 
-  // Disable body scroll when image popup is open
+  // Disable body and document scroll when image popup is open
   useEffect(() => {
     if (expandedImage) {
       document.body.style.overflow = "hidden";
+      document.documentElement.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
+      document.documentElement.style.overflow = "";
     }
     return () => {
       document.body.style.overflow = "";
+      document.documentElement.style.overflow = "";
+    };
+  }, [expandedImage]);
+
+  // Prevent mobile Safari/iOS background touchmoves when image is expanded
+  useEffect(() => {
+    const handleTouchMove = (e: TouchEvent) => {
+      if (expandedImage) {
+        e.preventDefault();
+      }
+    };
+    const overlay = overlayRef.current;
+    if (overlay) {
+      overlay.addEventListener("touchmove", handleTouchMove, { passive: false });
+    }
+    return () => {
+      if (overlay) {
+        overlay.removeEventListener("touchmove", handleTouchMove);
+      }
     };
   }, [expandedImage]);
 
@@ -158,8 +180,8 @@ export default function DynamicGallery() {
     const startTime = Date.now();
 
     const cancelScroll = (e: Event) => {
-      // Ignore events within 250ms of activation to prevent the activating triple-tap from immediately cancelling it
-      if (Date.now() - startTime < 250) return;
+      // Ignore events within 800ms of activation to prevent Safari delayed taps (like tap-to-zoom analysis) from cancelling it
+      if (Date.now() - startTime < 800) return;
       setIsAutoScrolling(false);
     };
 
@@ -556,7 +578,10 @@ export default function DynamicGallery() {
   const columns = getBalancedColumns(allSortedImages, columnCount);
 
   return (
-    <div className="w-full flex-grow bg-gradient-to-b from-[#0d2a5f] to-[#12489e] min-h-screen pt-[60px] md:pt-[72px] animate-[fadeIn_0.5s_ease-out] flex flex-col">
+    <div 
+      className="w-full flex-grow bg-gradient-to-b from-[#0d2a5f] to-[#12489e] min-h-screen pt-[60px] md:pt-[72px] animate-[fadeIn_0.5s_ease-out] flex flex-col"
+      onClick={() => {}} // Dummy click handler to force standard event bubbling on iOS Safari
+    >
       {loading ? (
         <div className="flex-grow flex flex-col items-center justify-center py-20 gap-3">
           <div className="w-8 h-8 rounded-full border-2 border-white/10 border-t-white/80 animate-spin" />
@@ -649,6 +674,7 @@ export default function DynamicGallery() {
       {/* Expanded Image Modal Overlay (Triggered on Double Tap) */}
       {expandedImage && (
         <div 
+          ref={overlayRef}
           id="image-expanded-popup-overlay"
           className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 sm:p-6 md:p-10 select-none cursor-default animate-[fadeIn_0.2s_ease-out]"
           onClick={() => setExpandedImage(null)}
