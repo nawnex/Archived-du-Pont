@@ -203,6 +203,12 @@ export default function DynamicGallery() {
     autoScrollActiveRef.current = isAutoScrolling;
     if (!isAutoScrolling) return;
 
+    // Temporarily override CSS smooth scroll to "auto" so window.scrollTo performs instantly each frame (critical for Safari)
+    const originalScrollBehavior = document.documentElement.style.scrollBehavior;
+    document.documentElement.style.scrollBehavior = "auto";
+    const originalBodyScrollBehavior = document.body.style.scrollBehavior;
+    document.body.style.scrollBehavior = "auto";
+
     let animationId: number;
     let lastTime = performance.now();
     const pixelsPerSecond = 26; // very slow scroll
@@ -250,6 +256,8 @@ export default function DynamicGallery() {
     animationId = requestAnimationFrame(scrollLoop);
     return () => {
       cancelAnimationFrame(animationId);
+      document.documentElement.style.scrollBehavior = originalScrollBehavior;
+      document.body.style.scrollBehavior = originalBodyScrollBehavior;
     };
   }, [isAutoScrolling]);
 
