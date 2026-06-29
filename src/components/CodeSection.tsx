@@ -35,7 +35,9 @@ interface CodeSectionProps {
 export default function CodeSection({ onViewChange }: CodeSectionProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const sectionRef = useRef<HTMLElement | null>(null);
   const [animKey, setAnimKey] = useState(0); // For re-triggering the logo flicker
+  const [hasIntersected, setHasIntersected] = useState(false);
 
   // Ref-based high performance rotation and momentum tracking
   const rotationRef = useRef({ x: 0.3, y: 0.5 });
@@ -48,8 +50,30 @@ export default function CodeSection({ onViewChange }: CodeSectionProps) {
     setAnimKey((prev) => prev + 1);
   };
 
+  // IntersectionObserver to detect when the section enters the viewport
+  useEffect(() => {
+    const element = sectionRef.current;
+    if (!element) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setHasIntersected(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
   // 3D Digital holographic wireframe globe drawing
   useEffect(() => {
+    if (!hasIntersected) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -334,10 +358,11 @@ export default function CodeSection({ onViewChange }: CodeSectionProps) {
       window.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("mouseup", handleMouseUp);
     };
-  }, []);
+  }, [hasIntersected]);
 
   return (
     <section 
+      ref={sectionRef}
       id="code-intro-section" 
       className="relative w-full py-24 px-6 md:px-12 xl:px-24 bg-[#0d3475] z-35 overflow-hidden border-t border-b border-white/10 flex items-center justify-center"
     >
@@ -469,20 +494,24 @@ export default function CodeSection({ onViewChange }: CodeSectionProps) {
           {/* Letter by Letter Custom Animating Title */}
           <h2 
             className="font-serif text-5xl sm:text-6xl text-white font-light tracking-tight drop-shadow-md select-none inline-flex gap-0.5 items-center mr-auto"
-            key={animKey}
+            key={`${animKey}-${hasIntersected}`}
           >
-            <span className="flicker-char flicker-char-0 font-serif mr-[2px]">C</span>
-            <span className="flicker-char flicker-char-1 font-serif mr-[2px]">o</span>
-            <span className="flicker-char flicker-char-2 font-serif mr-[2px]">d</span>
-            <span className="flicker-char flicker-char-3 font-serif">e</span>
+            <span className={`${hasIntersected ? "flicker-char flicker-char-0" : "opacity-0"} font-serif mr-[2px]`}>C</span>
+            <span className={`${hasIntersected ? "flicker-char flicker-char-1" : "opacity-0"} font-serif mr-[2px]`}>o</span>
+            <span className={`${hasIntersected ? "flicker-char flicker-char-2" : "opacity-0"} font-serif mr-[2px]`}>d</span>
+            <span className={`${hasIntersected ? "flicker-char flicker-char-3" : "opacity-0"} font-serif`}>e</span>
             <span className="inline-flex overflow-hidden relative ml-3 py-1 items-center leading-none">
               <span 
                 className="font-sans text-sky-400 italic font-normal text-3xl sm:text-4xl inline-block"
-                style={{
-                  transform: "translateY(120%)",
-                  animation: "revealWork 2.5s cubic-bezier(0.16, 1, 0.3, 1) forwards",
-                  animationDelay: "0.4s"
-                }}
+                style={
+                  hasIntersected
+                    ? {
+                        transform: "translateY(120%)",
+                        animation: "revealWork 2.5s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+                        animationDelay: "0.4s"
+                      }
+                    : { opacity: 0 }
+                }
               >
                 Work
               </span>
@@ -490,10 +519,14 @@ export default function CodeSection({ onViewChange }: CodeSectionProps) {
           </h2>
 
           <p 
-            key={`desc-${animKey}`}
-            className="font-sans text-base text-white/90 leading-relaxed font-light tracking-wide max-w-xl select-none"
+            key={`desc-${animKey}-${hasIntersected}`}
+            className="font-sans text-base text-white/90 leading-relaxed font-light tracking-wide max-w-xl select-none min-h-[48px]"
           >
-            <GlitchText text="Behind the warm watercolor landscapes lies a technical framework. Explore the secure APIs, interactive widgets, and full-stack architecture that power my software systems." />
+            {hasIntersected ? (
+              <GlitchText text="Behind the warm watercolor landscapes lies a technical framework. Explore the secure APIs, interactive widgets, and full-stack architecture that power my software systems." />
+            ) : (
+              <span className="opacity-0">Behind the warm watercolor landscapes lies a technical framework. Explore the secure APIs, interactive widgets, and full-stack architecture that power my software systems.</span>
+            )}
           </p>
 
           <div className="grid grid-cols-2 gap-4 w-full max-w-lg mt-2">

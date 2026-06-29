@@ -49,6 +49,188 @@ export default function DynamicGallery() {
   const sentinelRef = React.useRef<HTMLDivElement | null>(null);
   const fetchStartedRef = React.useRef<boolean>(false);
 
+  // Expanded Image popup state
+  const [expandedImage, setExpandedImage] = useState<GalleryImage | null>(null);
+  // Auto-scrolling state
+  const [isAutoScrolling, setIsAutoScrolling] = useState<boolean>(false);
+
+  // Year-by-year lazy loading states
+  const [loadedYears, setLoadedYears] = useState<number[]>([]);
+  const [attemptedYears, setAttemptedYears] = useState<number[]>([]);
+  const [currentScrolledYear, setCurrentScrolledYear] = useState<number | null>(null);
+  const [loadingYears, setLoadingYears] = useState<Record<number, boolean>>({});
+  const [emptyYearsInARow, setEmptyYearsInARow] = useState<number>(0);
+
+  // Dispatch custom event when auto scrolling starts or stops
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("autoscrollchange", { detail: { active: isAutoScrolling } }));
+  }, [isAutoScrolling]);
+
+  // Unified Click History Queue for Double Tap vs Triple Tap differentiation
+  const clickHistoryRef = React.useRef<{ time: number; image: GalleryImage | null }[]>([]);
+  const tapTimeoutRef = React.useRef<any>(null);
+  const expandedImageRef = React.useRef<GalleryImage | null>(null);
+  const scrollDirectionRef = React.useRef<"down" | "up">("down");
+  const autoScrollActiveRef = React.useRef<boolean>(false);
+
+  useEffect(() => {
+    expandedImageRef.current = expandedImage;
+  }, [expandedImage]);
+
+  // Global document tap listener to capture background/empty space taps
+  useEffect(() => {
+    const handleDocumentTap = (e: MouseEvent) => {
+      if (expandedImageRef.current) return; // Ignore if modal is open
+
+      const target = e.target as HTMLElement;
+      const isImageClick = target.closest(".gallery-image-wrapper");
+      if (!isImageClick) {
+        registerTap(null);
+      }
+    };
+
+    document.addEventListener("click", handleDocumentTap);
+    return () => {
+      document.removeEventListener("click", handleDocumentTap);
+      if (tapTimeoutRef.current) {
+        clearTimeout(tapTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const registerTap = (img: GalleryImage | null) => {
+    if (expandedImageRef.current) return;
+
+    const now = Date.now();
+    // Filter out taps older than 500ms
+    clickHistoryRef.current = clickHistoryRef.current.filter(item => now - item.time < 500);
+
+    // Add current tap
+    clickHistoryRef.current.push({ time: now, image: img });
+
+    // Clear any pending evaluation timer
+    if (tapTimeoutRef.current) {
+      clearTimeout(tapTimeoutRef.current);
+      tapTimeoutRef.current = null;
+    }
+
+    if (clickHistoryRef.current.length >= 3) {
+      // Triple Tap detected! Toggle slow auto scrolling
+      setIsAutoScrolling((prev) => !prev);
+      clickHistoryRef.current = [];
+      return;
+    }
+
+    // Set a small evaluation window to wait and see if a third tap occurs
+    tapTimeoutRef.current = setTimeout(() => {
+      const history = clickHistoryRef.current;
+      if (history.length === 2) {
+        // Double Tap detected! Check if both taps were on the same image
+        const [first, second] = history;
+        if (first.image && second.image && first.image.id === second.image.id) {
+          setExpandedImage(first.image);
+        }
+      }
+      clickHistoryRef.current = [];
+    }, 280); // 280ms threshold is the sweet spot for double vs triple tap detection
+  };
+
+  const handleImageClick = (img: GalleryImage) => {
+    registerTap(img);
+  };
+
+  // Disable body scroll when image popup is open
+  useEffect(() => {
+    if (expandedImage) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [expandedImage]);
+
+  // Cancel auto-scroll on manual scroll or any tap/click on screen
+  useEffect(() => {
+    if (!isAutoScrolling) return;
+
+    const startTime = Date.now();
+
+    const cancelScroll = (e: Event) => {
+      // Ignore events within 250ms of activation to prevent the activating triple-tap from immediately cancelling it
+      if (Date.now() - startTime < 250) return;
+      setIsAutoScrolling(false);
+    };
+
+    window.addEventListener("wheel", cancelScroll, { passive: true });
+    window.addEventListener("touchmove", cancelScroll, { passive: true });
+    window.addEventListener("keydown", cancelScroll, { passive: true });
+    window.addEventListener("pointerdown", cancelScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener("wheel", cancelScroll);
+      window.removeEventListener("touchmove", cancelScroll);
+      window.removeEventListener("keydown", cancelScroll);
+      window.removeEventListener("pointerdown", cancelScroll);
+    };
+  }, [isAutoScrolling]);
+
+  // Frame-by-frame extremely slow auto scroll loop
+  useEffect(() => {
+    autoScrollActiveRef.current = isAutoScrolling;
+    if (!isAutoScrolling) return;
+
+    let animationId: number;
+    let lastTime = performance.now();
+    const pixelsPerSecond = 26; // very slow scroll
+    let preciseScrollY = window.scrollY;
+
+    const scrollLoop = (time: number) => {
+      if (!autoScrollActiveRef.current) return;
+
+      const delta = (time - lastTime) / 1000;
+      lastTime = time;
+
+      const scrollAmount = pixelsPerSecond * delta;
+      const currentScrollY = window.scrollY;
+
+      // If the user manually scrolled, sync our precise position
+      if (Math.abs(preciseScrollY - currentScrollY) > 2) {
+        preciseScrollY = currentScrollY;
+      }
+
+      const maxScrollY = document.documentElement.scrollHeight - window.innerHeight;
+
+      if (scrollDirectionRef.current === "down") {
+        preciseScrollY += scrollAmount;
+        if (preciseScrollY >= maxScrollY - 1) {
+          preciseScrollY = maxScrollY;
+          window.scrollTo(0, maxScrollY);
+          scrollDirectionRef.current = "up";
+        } else {
+          window.scrollTo(0, preciseScrollY);
+        }
+      } else {
+        preciseScrollY -= scrollAmount;
+        if (preciseScrollY <= 1) {
+          preciseScrollY = 0;
+          window.scrollTo(0, 0);
+          scrollDirectionRef.current = "down";
+        } else {
+          window.scrollTo(0, preciseScrollY);
+        }
+      }
+
+      animationId = requestAnimationFrame(scrollLoop);
+    };
+
+    animationId = requestAnimationFrame(scrollLoop);
+    return () => {
+      cancelAnimationFrame(animationId);
+    };
+  }, [isAutoScrolling]);
+
   useEffect(() => {
     const updateColumns = () => {
       const width = window.innerWidth;
@@ -103,6 +285,13 @@ export default function DynamicGallery() {
           if (data.files && data.files.length > 0) {
             setImages(shuffleArray(data.files));
             setProvider("drive");
+            if (data.maxYear) {
+              const yearsInFiles = data.files.map((f: any) => f.year).filter(Boolean);
+              const initialYears = Array.from(new Set([data.maxYear, ...yearsInFiles]));
+              setLoadedYears(initialYears);
+              setAttemptedYears(initialYears);
+              setCurrentScrolledYear(data.maxYear);
+            }
           } else {
             // Fall back to pre-bundled local files if API returns empty list or isn't configured
             setImages(shuffleArray(galleryImages));
@@ -131,11 +320,28 @@ export default function DynamicGallery() {
     };
   }, []);
 
-  // Function to trigger fetching remaining images (2025, 2024, etc.)
-  const triggerFetchRemaining = React.useCallback(() => {
-    if (fetchStartedRef.current || provider === "local") return;
-    fetchStartedRef.current = true;
+  // Effect to load the year BEFORE the currently scrolled year
+  const loadNextYear = React.useCallback(() => {
+    if (loading || loadingMore || provider === "local" || loadedYears.length === 0) return;
+
+    // Find the minimum year currently attempted
+    const minAttemptedYear = Math.min(...attemptedYears);
+    
+    // Stop if we have gone too far back (prior to 2015) or have hit too many empty years in a row
+    if (minAttemptedYear < 2015 || emptyYearsInARow >= 3) {
+      setHasMore(false);
+      return;
+    }
+
+    const yearToLoad = minAttemptedYear - 1;
+
+    if (attemptedYears.includes(yearToLoad) || loadingYears[yearToLoad]) {
+      return;
+    }
+
     setLoadingMore(true);
+    setLoadingYears((prev) => ({ ...prev, [yearToLoad]: true }));
+    setAttemptedYears((prev) => [...prev, yearToLoad]);
 
     function shuffleArray<T>(array: T[]): T[] {
       const arr = [...array];
@@ -146,36 +352,120 @@ export default function DynamicGallery() {
       return arr;
     }
 
-    async function fetchRest() {
+    async function fetchYear() {
       try {
-        const res = await fetch("/api/gallery?excludeRecent=true");
-        if (!res.ok) throw new Error("API request failed");
+        const res = await fetch(`/api/gallery?year=${yearToLoad}`);
+        if (!res.ok) throw new Error(`API failed for year ${yearToLoad}`);
         const data = await res.json();
+        
         if (data.files && data.files.length > 0) {
-          setImages((prev) => [...prev, ...shuffleArray(data.files)]);
+          setImages((prev) => {
+            const existingIds = new Set(prev.map(img => img.id));
+            const newFiles = data.files.filter((f: GalleryImage) => !existingIds.has(f.id));
+            return [...prev, ...shuffleArray(newFiles)];
+          });
+          setLoadedYears((prev) => [...prev, yearToLoad]);
+          setEmptyYearsInARow(0); // Reset consecutive empty count on success
+        } else {
+          setEmptyYearsInARow((prev) => prev + 1);
         }
       } catch (err) {
-        console.warn("Could not fetch remaining Google Drive images:", err);
+        console.warn(`Could not fetch images for year ${yearToLoad}:`, err);
+        setEmptyYearsInARow((prev) => prev + 1);
       } finally {
         setLoadingMore(false);
-        setHasMore(false);
+        setLoadingYears((prev) => ({ ...prev, [yearToLoad]: false }));
       }
     }
 
-    fetchRest();
-  }, [provider]);
+    fetchYear();
+  }, [loading, loadingMore, provider, loadedYears, attemptedYears, loadingYears, emptyYearsInARow]);
 
-  // Trigger when scroll sentinel becomes visible
+  // Keep a stable ref of loadNextYear to avoid scroll listener re-registration
+  const loadNextYearRef = React.useRef(loadNextYear);
+  useEffect(() => {
+    loadNextYearRef.current = loadNextYear;
+  }, [loadNextYear]);
+
+  // Scroll listener to:
+  // 1. Detect which year the user is currently scrolling on
+  // 2. Preload the next year if the user is past 70% of the active scrolled year
+  useEffect(() => {
+    if (loading || images.length === 0 || provider === "local") return;
+
+    const handleScroll = () => {
+      const items = document.querySelectorAll(".gallery-image-item");
+      if (items.length === 0) return;
+
+      // 1. Find the year closest to the viewport reference (e.g. 120px from top)
+      let closestYear: number | null = null;
+      let minDistance = Infinity;
+
+      items.forEach((item) => {
+        const rect = item.getBoundingClientRect();
+        const distance = Math.abs(rect.top - 120); 
+        if (distance < minDistance) {
+          minDistance = distance;
+          const yearAttr = item.getAttribute("data-year");
+          if (yearAttr) {
+            closestYear = parseInt(yearAttr, 10);
+          }
+        }
+      });
+
+      if (closestYear && closestYear !== currentScrolledYear) {
+        setCurrentScrolledYear(closestYear);
+      }
+
+      // 2. Measure scroll percentage of the active scrolled year
+      const activeYear = closestYear || currentScrolledYear;
+      if (activeYear) {
+        const yearItems = document.querySelectorAll(`.gallery-image-item[data-year="${activeYear}"]`);
+        if (yearItems.length > 0) {
+          let yearTop = Infinity;
+          let yearBottom = -Infinity;
+
+          yearItems.forEach((el) => {
+            const rect = el.getBoundingClientRect();
+            const absoluteTop = rect.top + window.scrollY;
+            const absoluteBottom = rect.bottom + window.scrollY;
+            if (absoluteTop < yearTop) yearTop = absoluteTop;
+            if (absoluteBottom > yearBottom) yearBottom = absoluteBottom;
+          });
+
+          const yearHeight = yearBottom - yearTop;
+          if (yearHeight > 0) {
+            // How far down the viewport bottom is relative to the start of the year section
+            const scrolledAmount = (window.scrollY + window.innerHeight) - yearTop;
+            const percentage = scrolledAmount / yearHeight;
+
+            // If the user has scrolled past 70% of the active year, start preloading the next one!
+            if (percentage >= 0.70) {
+              loadNextYearRef.current();
+            }
+          }
+        }
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    // Run once initially
+    handleScroll();
+
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [loading, images.length, currentScrolledYear, provider]);
+
+  // Trigger loading via IntersectionObserver sentinel (as fallback at the bottom of the page)
   useEffect(() => {
     if (!hasMore || loadingMore || loading || provider === "local") return;
 
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
-          triggerFetchRemaining();
+          loadNextYearRef.current();
         }
       },
-      { rootMargin: "300px" } // Load early when user scrolls close to bottom
+      { rootMargin: "1500px" } // Load way before reaching the bottom
     );
 
     const currentSentinel = sentinelRef.current;
@@ -188,18 +478,17 @@ export default function DynamicGallery() {
         observer.unobserve(currentSentinel);
       }
     };
-  }, [hasMore, loadingMore, loading, provider, triggerFetchRemaining]);
+  }, [hasMore, loadingMore, loading, provider]);
 
-  // Idle fallback to preload remaining images after a brief delay
+  // Co-operative fallback: load when user scrolls onto the lowest loaded year
   useEffect(() => {
-    if (loading || provider === "local") return;
+    if (loading || provider === "local" || !currentScrolledYear || loadedYears.length === 0) return;
 
-    const timeoutId = setTimeout(() => {
-      triggerFetchRemaining();
-    }, 2500);
-
-    return () => clearTimeout(timeoutId);
-  }, [loading, provider, triggerFetchRemaining]);
+    const minLoadedYear = Math.min(...loadedYears);
+    if (currentScrolledYear === minLoadedYear) {
+      loadNextYearRef.current();
+    }
+  }, [currentScrolledYear, loadedYears, loading, provider]);
 
   // Group the already-randomized images by year
   const groupedImages: { [year: number]: GalleryImage[] } = {};
@@ -289,7 +578,8 @@ export default function DynamicGallery() {
                     return (
                       <div
                         key={img.id}
-                        className="w-full relative"
+                        className="w-full relative gallery-image-item"
+                        data-year={imgYear}
                       >
                         {/* Liquid glass text-only title floating above the grid (4x larger) */}
                         {isFirst && (
@@ -304,7 +594,10 @@ export default function DynamicGallery() {
                             </span>
                           </div>
                         )}
-                        <div className="w-full overflow-hidden bg-sky-950/20">
+                        <div 
+                          className="w-full overflow-hidden bg-sky-950/20 cursor-default gallery-image-wrapper"
+                          onClick={() => handleImageClick(img)}
+                        >
                           {/* Dynamic Image with Native Lazy Loading and Aspect Preserved */}
                           <img
                             src={img.src.includes("googleusercontent.com") ? getOptimizedImageUrl(img.src, 400) : img.src}
@@ -325,7 +618,7 @@ export default function DynamicGallery() {
                               const imgEl = e.currentTarget;
                               handleImageLoad(img.id, imgEl.naturalWidth, imgEl.naturalHeight);
                             }}
-                            className="w-full h-auto block select-none pointer-events-none hover:scale-[1.02] transition-transform duration-500"
+                            className="w-full h-auto block select-none pointer-events-auto cursor-default"
                           />
                         </div>
                       </div>
@@ -339,7 +632,7 @@ export default function DynamicGallery() {
           {/* Intersection sentinel to trigger loading remaining images on-demand */}
           {hasMore && (
             <div 
-              ref={sentinelRef} 
+              ref={sentinelRef}
               className="w-full flex flex-col items-center justify-center py-12 gap-3"
             >
               {loadingMore && (
@@ -350,6 +643,27 @@ export default function DynamicGallery() {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Expanded Image Modal Overlay (Triggered on Double Tap) */}
+      {expandedImage && (
+        <div 
+          id="image-expanded-popup-overlay"
+          className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 sm:p-6 md:p-10 select-none cursor-default animate-[fadeIn_0.2s_ease-out]"
+          onClick={() => setExpandedImage(null)}
+        >
+          <div className="relative max-w-full max-h-full flex items-center justify-center">
+            <img
+              src={expandedImage.src.includes("googleusercontent.com") ? getOptimizedImageUrl(expandedImage.src, 1200) : expandedImage.src}
+              alt={expandedImage.alt}
+              className="max-w-full max-h-[92vh] object-contain rounded-lg shadow-[0_12px_40px_rgba(0,0,0,0.8)] border border-white/5 cursor-default transition-all duration-300"
+              onClick={(e) => {
+                // Clicking the image itself should NOT close the popup
+                e.stopPropagation();
+              }}
+            />
+          </div>
         </div>
       )}
     </div>

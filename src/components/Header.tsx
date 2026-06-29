@@ -21,9 +21,9 @@ export default function Header({ currentView, onViewChange }: HeaderProps) {
     }
 
     const handleScroll = () => {
-      // Check if we are on mobile or tablet/iPad size (< 1024px)
-      if (window.innerWidth >= 1024) {
-        setVisible(true);
+      const isMobile = window.innerWidth < 1024;
+      if (!isMobile) {
+        // On desktop, natural scroll doesn't hide the header
         return;
       }
 
@@ -51,9 +51,22 @@ export default function Header({ currentView, onViewChange }: HeaderProps) {
       lastScrollY.current = currentScrollY;
     };
 
+    const handleAutoScrollChange = (e: Event) => {
+      const customEvent = e as CustomEvent<{ active: boolean }>;
+      const isAutoActive = customEvent.detail?.active;
+      if (isAutoActive) {
+        setVisible(false);
+      } else {
+        setVisible(true);
+      }
+    };
+
     window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("autoscrollchange", handleAutoScrollChange);
+
     return () => {
       window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("autoscrollchange", handleAutoScrollChange);
     };
   }, [currentView]);
 

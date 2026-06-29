@@ -187,6 +187,24 @@ async function startServer() {
       if (matchedFiles.length > 0) {
         const recentOnly = req.query.recentOnly === "true";
         const excludeRecent = req.query.excludeRecent === "true";
+        const yearQuery = req.query.year ? parseInt(req.query.year as string, 10) : null;
+
+        if (yearQuery && !isNaN(yearQuery)) {
+          // Resolve with network enabled to make sure we fetch EXIF if needed
+          const driveImages = await Promise.all(
+            matchedFiles.map(async (file) => {
+              const year = await getYearForImage(file.id, file.name, true);
+              return {
+                id: `drive-${file.id}`,
+                src: `https://lh3.googleusercontent.com/d/${file.id}`,
+                alt: file.name,
+                year: year,
+              };
+            })
+          );
+          const filtered = driveImages.filter(img => img.year === yearQuery);
+          return res.json({ provider: "drive", files: filtered });
+        }
 
         if (recentOnly) {
           // Resolve with network disabled to guarantee 0ms network overhead
@@ -207,7 +225,11 @@ async function startServer() {
 
           // Return only those matching the most recent year
           const recentImages = driveImages.filter(img => img.year === maxYear);
-          return res.json({ provider: "drive", files: recentImages, maxYear });
+
+          // Get unique sorted years available
+          const availableYears = Array.from(new Set(driveImages.map(img => img.year))).sort((a, b) => b - a);
+
+          return res.json({ provider: "drive", files: recentImages, maxYear, availableYears });
         }
 
         if (excludeRecent) {
